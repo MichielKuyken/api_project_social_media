@@ -86,7 +86,7 @@ def create_type(db: Session, types: schemas.TypeCreate):
 
 
 def delete_type(db: Session, types: schemas.Type):
-    db.delete(type)
+    db.delete(types)
     db.commit()
     return "Type successfully deleted!"
 
