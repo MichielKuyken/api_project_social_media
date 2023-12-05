@@ -23,7 +23,7 @@ class User(UserBase):
 class PostBase(BaseModel):
     text: str
     titel: str
-    date: datetime.now()
+    date: datetime = None
     user_id: int
     type_id: int
 
