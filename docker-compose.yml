@@ -1,7 +1,7 @@
 version: "3.9"
 services:
  api-social-media:
-  image: mrhysters/api_project_social_meida
+  image: mrhysters/api_project_social_media
   ports:
     - "8000:8000"
   volumes:
