@@ -1,9 +1,6 @@
-fastapi>=0.68.0,<0.69.0
-pydantic>=1.8.0,<2.0.0
-uvicorn>=0.15.0,<0.16.0
-sqlalchemy==1.4.42
+fastapi==0.105.0
 passlib==1.7.4
-argon2-cffi>=18.2.0
-bcrypt>=3.1.0
+pydantic==1.10.13
 python_jose==3.3.0
-
+SQLAlchemy==2.0.23
+SQLAlchemy==1.4.42
