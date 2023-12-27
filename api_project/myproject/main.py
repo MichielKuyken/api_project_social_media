@@ -56,12 +56,12 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
             headers={"WWW-Authenticate": "Bearer"},
         )
     access_token = auth.create_access_token(
-        data={"sub": user.email}
+        data={"sub": user.username}
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@app.post("/users/", response_model=schemas.User)
+@app.post("/users/")
 def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
     user_username = crud.get_user(db, username=user.username)
     if user_username:
@@ -84,19 +84,20 @@ def read_user(user_username: str, db: Session = Depends(get_db)):
 
 
 @app.delete("/users/{username}", response_model=schemas.User)
-def delete_user(username: str, db: Session = Depends(get_db)):
+def delete_user(username: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_user = auth.get_current_user(db, token)
     user = crud.get_user(db, username=username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     return crud.delete_user(db=db, user=user)
 
 
-@app.put("/users/{username}", response_model=schemas.User)
-def update_user(user_update: schemas.UserCreate, username: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
-    user = crud.get_user(db, username=username)
-    if not user:
+@app.put("/users/", response_model=schemas.User)
+def update_user(user_update: schemas.UserCreate, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_user = auth.get_current_user(db, token)
+    if not current_user:
         raise HTTPException(status_code=404, detail="User not found")
-    updated_user = crud.update_user(db, user, user_update)
+    updated_user = crud.update_user(db, current_user, user_update)
     return updated_user
 
 
@@ -120,16 +121,18 @@ def read_posts_by_titel(post_titel: str, db: Session = Depends(get_db)):
 
 
 @app.delete("/posts/{titel}", response_model=schemas.Post)
-def deleteposttype(titel: str, db: Session = Depends(get_db)):
+def deleteposttype(titel: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_user = auth.get_current_user(db, token)
     post = crud.get_post(db, post_titel=titel)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     return crud.delete_post(db=db, post=post)
 
 
-@app.put("/posts/{titel}", response_model=schemas.Post)
-def update_post(post_update: schemas.PostCreate, titel: str, db: Session = Depends(get_db)):
-    post = crud.get_post(db, post_titel=titel)
+@app.put("/posts/{post_id}", response_model=schemas.Post)
+def update_post(post_update: schemas.PostCreate, post_id: int, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_user = auth.get_current_user(db, token)
+    post = crud.get_post(db, post_id=post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     updated_post = crud.update_post(db, post, post_update)

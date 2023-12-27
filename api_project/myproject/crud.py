@@ -15,7 +15,7 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = auth.get_password_hash(user.password)
-    db_user = models.User(username=user.username, password=hashed_password)
+    db_user = models.User(username=user.username, password=hashed_password, voornaam=user.voornaam, achternaam=user.achternaam, email=user.email)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -36,8 +36,8 @@ def update_user(db: Session, existing_user: models.User, user_update: schemas.Us
     return existing_user
 
 
-def get_post(db: Session, post_titel: str):
-    return db.query(models.Post).filter(models.Post.titel == post_titel).first()
+def get_post(db: Session, post_id: int):
+    return db.query(models.Post).filter(models.Post.id == post_id).first()
 
 
 def get_posts(db: Session, skip: int = 0, limit: int = 100):

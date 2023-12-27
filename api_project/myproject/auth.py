@@ -3,8 +3,10 @@ import crud
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
+from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status
 
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 SECRET_KEY = "F73F0C493C83FEE28BA5E7CFA4071CFF96988D845B20E382E083A1E0F15632C7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
@@ -23,7 +25,7 @@ def authenticate_user(db: Session, username: str, password: str):
     user = crud.get_user(db, username)
     if not user:
         return False
-    if not verify_password(password, user.hashed_password):
+    if not verify_password(password, user.password):
         return False
     return user
 
@@ -42,4 +44,20 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 
-
+def get_current_user(db: Session, token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = crud.get_user(db, username)
+    if user is None:
+        raise credentials_exception
+    return user
