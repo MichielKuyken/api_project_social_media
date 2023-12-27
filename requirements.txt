@@ -4,3 +4,4 @@ uvicorn>=0.15.0,<0.16.0
 sqlalchemy==1.4.42
 passlib==1.7.4
 python_jose==3.3.0
+python-multipart>=0.0.5
