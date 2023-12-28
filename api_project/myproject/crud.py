@@ -36,16 +36,17 @@ def update_user(db: Session, existing_user: models.User, user_update: schemas.Us
     return existing_user
 
 
-def get_post(db: Session, post_id: int):
-    return db.query(models.Post).filter(models.Post.id == post_id).first()
+def get_post(db: Session, post_titel: str):
+    return db.query(models.Post).filter(models.Post.titel == post_titel).first()
 
 
 def get_posts(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Post).offset(skip).limit(limit).all()
 
 
-def create_post(db: Session, post: schemas.PostCreate):
-    db_post = models.Post(**post.dict())
+def create_post(db: Session, post: schemas.PostCreate, user_id: int):
+    print(user_id)
+    db_post = models.Post(titel=post.titel, text=post.text, date=post.date, user_id=user_id, type_id=post.type_id)
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
@@ -116,7 +117,8 @@ def delete_admin(db: Session, admin: schemas.Admin):
 
 def create_admin(db: Session, admin: schemas.AdminCreate):
     if len(db.query(models.Admin).all()) == 0:
-        db_admin = models.Admin(username=admin.username, password=admin.password)
+        hashed_password = auth.get_password_hash(admin.password)
+        db_admin = models.Admin(username=admin.username, password=hashed_password)
         db.add(db_admin)
         db.commit()
         db.refresh(db_admin)

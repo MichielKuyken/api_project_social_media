@@ -21,10 +21,10 @@ class User(UserBase):
 
 
 class PostBase(BaseModel):
-    text: str
     titel: str
+    text: str
     date: datetime = None
-    user_id: int
+    user_id: int | None = None
     type_id: int
 
 
@@ -40,7 +40,7 @@ class Post(PostBase):
 
 
 class TypeBase(BaseModel):
-    type_naam: str | None = None
+    type_naam: str
 
 
 class TypeCreate(TypeBase):

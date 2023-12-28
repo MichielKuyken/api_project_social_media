@@ -44,21 +44,57 @@ def get_db():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+oauth2_scheme_admin = OAuth2PasswordBearer(tokenUrl="token")
+print(oauth2_scheme_admin)
 
 
 @app.post("/token")
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = auth.authenticate_user(db, form_data.username, form_data.password)
-    if not user:
+    admin = auth.authenticate_admin(db, form_data.username, form_data.password)
+    print(user)
+    print(admin)
+    if not user and not admin:
         raise HTTPException(
             status_code=401,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    access_token = auth.create_access_token(
-        data={"sub": user.username}
-    )
-    return {"access_token": access_token, "token_type": "bearer"}
+    if user:
+        access_token = auth.create_access_token(
+            data={"sub": user.username}
+        )
+        return {"access_token": access_token, "token_type": "bearer"}
+    elif admin:
+        access_token_admin = auth.create_access_token(
+            data={"sub": admin.username}
+        )
+        return {"access_token_admin": access_token_admin, "token_type": "bearer"}
+
+
+@app.post("/admin/")
+def create_admin(admin: schemas.AdminCreate, db: Session = Depends(get_db)):
+    login = crud.get_admin_by_username(db, username=admin.username)
+    if login:
+        raise HTTPException(status_code=400, detail="Admin already registred")
+    return crud.create_admin(db=db, admin=admin)
+
+
+@app.get("/admin/{admin_username}", response_model=schemas.Admin)
+def read_admin(admin_username: str, db: Session = Depends(get_db)):
+    admin = crud.get_admin_by_username(db, username=admin_username)
+    return admin
+
+
+@app.delete("/admin/{admin_username}")
+def delete_team(admin_username: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    print(token)
+    current_admin = auth.get_current_admin(db, token)
+    if not current_admin:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    if current_admin != admin_username:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    return crud.delete_admin(db=db, admin=current_admin)
 
 
 @app.post("/users/")
@@ -83,9 +119,12 @@ def read_user(user_username: str, db: Session = Depends(get_db)):
     return user
 
 
-@app.delete("/users/{username}", response_model=schemas.User)
+@app.delete("/users/{username}")
 def delete_user(username: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     current_user = auth.get_current_user(db, token)
+    current_admin = auth.get_current_admin(db, token)
+    if not current_user and not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
     user = crud.get_user(db, username=username)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -95,15 +134,23 @@ def delete_user(username: str, db: Session = Depends(get_db), token: str = Depen
 @app.put("/users/", response_model=schemas.User)
 def update_user(user_update: schemas.UserCreate, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     current_user = auth.get_current_user(db, token)
-    if not current_user:
+    current_admin = auth.get_current_admin(db, token)
+    if not current_user and not current_admin:
         raise HTTPException(status_code=404, detail="User not found")
     updated_user = crud.update_user(db, current_user, user_update)
     return updated_user
 
 
-@app.post("/posts/", response_model=schemas.Post)
-def create_post(post: schemas.PostCreate, db: Session = Depends(get_db)):
-    return crud.create_post(db=db, post=post)
+@app.post("/posts/")
+def create_post(post: schemas.PostCreate, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_user = auth.get_current_user(db, token)
+    current_admin = auth.get_current_admin(db, token)
+    if not current_user and not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
+    post_titel = crud.get_post(db, post_titel=post.titel)
+    if post_titel:
+        raise HTTPException(status_code=400, detail="Titel already used")
+    return crud.create_post(db=db, post=post, user_id=current_user.id)
 
 
 @app.get("/", response_model=list[schemas.Post])
@@ -120,18 +167,28 @@ def read_posts_by_titel(post_titel: str, db: Session = Depends(get_db)):
     return posts
 
 
-@app.delete("/posts/{titel}", response_model=schemas.Post)
+@app.delete("/posts/{titel}")
 def deleteposttype(titel: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     current_user = auth.get_current_user(db, token)
+    if not current_user:
+        print("hello")
+        current_admin = auth.get_current_admin(db, token)
+        print("hello")
     post = crud.get_post(db, post_titel=titel)
+    print(post.titel)
+    if current_user.id != post.user_id:
+        raise HTTPException(status_code=401, detail="User does not own post")
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
     return crud.delete_post(db=db, post=post)
 
 
-@app.put("/posts/{post_id}", response_model=schemas.Post)
+@app.put("/posts/{post_id}")
 def update_post(post_update: schemas.PostCreate, post_id: int, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
     current_user = auth.get_current_user(db, token)
+    current_admin = auth.get_current_admin(db, token)
+    if not current_user and not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
     post = crud.get_post(db, post_id=post_id)
     if not post:
         raise HTTPException(status_code=404, detail="Post not found")
@@ -139,8 +196,11 @@ def update_post(post_update: schemas.PostCreate, post_id: int, db: Session = Dep
     return updated_post
 
 
-@app.post("/types/", response_model=schemas.Type)
-def create_types(types: schemas.TypeCreate, db: Session = Depends(get_db)):
+@app.post("/types/")
+def create_types(types: schemas.TypeCreate, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_admin = auth.get_current_admin(db, token)
+    if not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
     typename = crud.get_type(db, typename=types.type_naam)
     if typename:
         raise HTTPException(status_code=400, detail="Type name already registred")
@@ -161,19 +221,27 @@ def read_type(type_id: int, db: Session = Depends(get_db)):
     return types
 
 
-@app.delete("/types/{typename}", response_model=schemas.Type)
-def delete_type(typename: str, db: Session = Depends(get_db)):
+@app.delete("/types/{typename}")
+def delete_type(typename: str, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_admin = auth.get_current_admin(db, token)
+    if not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
     types = crud.get_type(db, typename=typename)
     if not types:
         raise HTTPException(status_code=404, detail="Type not found")
     return crud.delete_type(db=db, types=types)
 
 
-@app.put("/types/{type_id}", response_model=schemas.Type)
-def update_type(type_update: schemas.TypeCreate, type_id: int, db: Session = Depends(get_db)):
+@app.put("/types/{type_id}")
+def update_type(type_update: schemas.TypeCreate, type_id: int, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)):
+    current_admin = auth.get_current_admin(db, token)
+    if not current_admin:
+        raise HTTPException(status_code=404, detail="User not found")
     types = crud.get_type_by_id(db, type_id=type_id)
     if not types:
         raise HTTPException(status_code=404, detail="Type not found")
     updated_type = crud.update_type(db, types, type_update)
     return updated_type
+
+
 
